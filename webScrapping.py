@@ -15,7 +15,7 @@ def create_driver():
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--user-data-dir=/tmp/chrome-user-data')  # Specify a unique user-data-dir
+    options.add_argument('--user-data-dir=/tmp/chrome-user-data')  # Spécifie un répertoire utilisateur unique pour Chrome
     driver = webdriver.Chrome(options=options)
     return driver
 
@@ -31,17 +31,21 @@ def scrape():
     driver = create_driver()
     try:
         driver.get('https://www.service-public.fr/particuliers/vosdroits/demarches-et-outils/interrogation-fourriere')
+        
+        # Attente de l'apparition de l'image captcha
         WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, "captchaImage")))
 
+        # Remplir le champ d'immatriculation
         immatriculation_input = driver.find_element(By.ID, "immatriculation")
         immatriculation_input.send_keys(license_plate)
 
+        # Attendre et récupérer l'image du captcha
         time.sleep(2)
-
         captcha_image = driver.find_element(By.ID, "captchaImage")
         captcha_base64 = captcha_image.get_attribute("src")
         image_data = base64.b64decode(captcha_base64.split(",")[1])
 
+        # Envoi de l'image de captcha à l'API SolveCaptcha
         url = "https://api.solvecaptcha.com/in.php"
         api_key = "6b8eacf216d3f99e789a2a6336597d7c"
         files = {'file': ('captcha.png', BytesIO(image_data), 'image/png')}
@@ -57,35 +61,42 @@ def scrape():
                 solution_url = f"http://api.solvecaptcha.com/res.php?key={api_key}&action=get&id={captcha_id}&json=1"
                 solution_response = requests.get(solution_url)
                 solution_result = solution_response.json()
+                
                 if solution_result.get("request") != "CAPCHA_NOT_READY":
                     solution = solution_result.get("request")
                     break
             else:
                 return jsonify({"error": "Captcha non résolu à temps"}), 408
 
+            # Remplir le captcha dans le formulaire
             captcha_input = driver.find_element(By.ID, "captchaFormulaireExtInput")
             captcha_input.send_keys(solution)
             submit_button = driver.find_element(By.ID, "fourriere-submit")
+
+            # Assurez-vous que le bouton est cliquable
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable(submit_button))
             submit_button.click()
             time.sleep(10)
 
+            # Attendre que les informations soient disponibles après la soumission
             try:
                 WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#main > div > article > div.fr-my-4w")))
+                success_element = driver.find_element(By.CSS_SELECTOR, "#main > div > article > div.fr-my-4w")
                 success_message = success_element.text
 
-                # Détection si le véhicule est en fourrière
+                # Vérifier si le véhicule est en fourrière
                 en_fouriere = "Le véhicule est actuellement en fourrière" in success_message
 
                 if en_fouriere:
-                    # Extraire adresse et téléphone
+                    # Extraire l'adresse et le téléphone
                     lines = success_message.split('\n')
                     adresse = ""
                     telephone = ""
 
                     for idx, line in enumerate(lines):
                         if "immatriculé " in line:
-                            # On prend les 2 lignes suivantes comme adresse
-                            adresse = lines[idx + 1] + " " + lines[idx + 2]  + " " + lines[idx + 3]
+                            # Prendre les 2 lignes suivantes comme adresse
+                            adresse = lines[idx + 1] + " " + lines[idx + 2] + " " + lines[idx + 3]
                         if "+" in line and line.strip().startswith("+"):
                             telephone = line.strip()
 
