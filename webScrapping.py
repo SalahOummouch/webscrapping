@@ -7,6 +7,7 @@ import time
 import base64
 from io import BytesIO
 import requests
+import traceback
 
 app = Flask(__name__)
 
@@ -122,12 +123,14 @@ def scrape():
                     })
 
             except Exception as e:
-                return jsonify({"error": f"Erreur lors de la récupération des informations: {str(e)}"}), 500
+                error_details = traceback.format_exc()
+                return jsonify({"error": f"Erreur lors de la récupération des informations: {error_details}"}), 500
         else:
             return jsonify({"error": f"Erreur SolveCaptcha: {response.text}"}), 500
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        error_details = traceback.format_exc()
+        return jsonify({"error": f"Erreur interne: {error_details}"}), 500
     finally:
         driver.quit()
 
