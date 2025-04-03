@@ -8,6 +8,7 @@ import base64
 from io import BytesIO
 import requests
 import traceback
+import tempfile
 
 app = Flask(__name__)
 
@@ -16,7 +17,8 @@ def create_driver():
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--user-data-dir=/tmp/chrome-user-data')  # Specify a unique user-data-dir
+    # Utiliser un répertoire unique pour chaque session
+    options.add_argument(f'--user-data-dir={tempfile.mkdtemp()}')
     driver = webdriver.Chrome(options=options)
     return driver
 
@@ -97,7 +99,6 @@ def scrape():
                 except:
                     WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#main > div > article > div.fr-my-4w > div.fr-mb-4w.fr-alert.fr-alert--warning")))
                     success_message = driver.find_element(By.CSS_SELECTOR, "#main > div > article > div.fr-my-4w > div.fr-mb-4w.fr-alert.fr-alert--warning").text
-                
 
                 # Détection si le véhicule est en fourrière
                 en_fouriere = "Le véhicule est actuellement en fourrière" in success_message
